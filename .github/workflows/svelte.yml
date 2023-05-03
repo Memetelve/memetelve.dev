@@ -1,0 +1,57 @@
+name: CI
+
+on:
+  push:
+    branches: [ "main" ]
+    paths-ignore:
+      - '**/*.md'
+      - 'LICENSE'
+      - '**/.husky'
+      - 'sanity-cms/**'
+      - 'express-api/**'
+      - 'rust-api/**'
+      - 'elixir-api/**'
+
+concurrency: 
+  group: ci
+  cancel-in-progress: true
+
+jobs:
+  lint:
+    name: Lint check
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+      - name: Setup Node
+        uses: actions/setup-node@v3
+        with:
+          node-version: 16
+      - uses: pnpm/action-setup@v2
+        name: Install pnpm
+        id: pnpm-install
+        with:
+          version: 7
+          run_install: false
+      - name: Use node_modules cache
+        uses: actions/cache@v3
+        id: nm-cache
+        with:
+          path: 'svelte-app/node_modules'
+          key: ${{ runner.os }}-nm-16-${{ hashFiles('svelte-app/pnpm-lock.yaml') }}
+          restore-keys: |
+            ${{ runner.os }}-nm-16-
+      - name: Install dependencies
+        if: steps.nm-cache.outputs.cache-hit != 'true'
+        run: make install-web
+      - name: Run lint check
+        run: make lint
+  tests:
+    name: Run tests
+    needs: [ lint ]
+    uses: ./.github/workflows/test.yml
+  deploy:
+    name: Deploy
+    needs: [ tests ]
+    uses: ./.github/workflows/netlify-deploy.yml
+    secrets: inherit
